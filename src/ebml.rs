@@ -8,8 +8,9 @@ const MAGIC_NUMBER: [u8; 4] = [
     0xa3
 ]; 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ElementKind {
+    Unknown,
     Master,
     UInt,
     SInt,
@@ -23,18 +24,20 @@ pub enum ElementKind {
 #[derive(Clone)]
 pub struct ElementData(Vec<u8>);
 
-pub struct EBMLParser;
+pub struct EBMLParser<T: Read + Seek> {
+    reader: T,
+}
 
 #[derive(Debug)]
 pub struct Document {
-    pub header: MasterElement,
-    pub root: MasterElement,
+    pub header: Node,
+    pub root: Node,
 }
 
 #[derive(Debug, Clone)]
-pub struct MasterElement {
-    pub master: Element,
-    pub elements: Vec<Element>,    
+pub struct Node {
+    pub element: Element,
+    pub children: Vec<Node>,
 }
 
 #[derive(Clone)]
@@ -45,25 +48,31 @@ pub struct Element {
     pub data: ElementData,
 }
 
-impl EBMLParser {
-    pub fn parse(mut r: impl Read + Seek) -> Document {
+impl<T: Read + Seek> EBMLParser<T> {
+    pub fn new(r: T) -> EBMLParser<T> {
+        EBMLParser {
+            reader: r,
+        }
+    }
+
+    pub fn parse(&mut self) -> Document {
         // check magic number
-        match check_magic_number(&mut r) {
+        match self.check_magic_number() {
             Ok(v) => {
                 if !v {
                     panic!("incorrect magic number")
                 }
             },
-            Err(e) => panic!(e),
+            Err(e) => panic!(e), 
         }
         
         // seek back to beginning
-        r.seek(SeekFrom::Start(0)).unwrap();
+        self.reader.seek(SeekFrom::Start(0)).unwrap();
 
         // parse master element
-        let header = EBMLParser::parse_master_element(&mut r);
+        let header = self.build_node_tree();
         // parse segment
-        let root = EBMLParser::parse_master_element(&mut r);
+        let root = self.build_node_tree();
 
         Document {
             header: header,
@@ -71,51 +80,106 @@ impl EBMLParser {
         }
     }
 
-    fn parse_master_element(mut r: impl Read + Seek) -> MasterElement {
-        let start = r.seek(SeekFrom::Current(0)).unwrap();
-        let master = EBMLParser::parse_element(&mut r);
+    fn build_node_tree(&mut self) -> Node {
+        let elem = self.parse_element();
+        let mut children: Vec<Node> = Vec::new();
         
-        r.seek(SeekFrom::Start(start)).unwrap();
-        read_vint(&mut r);
-        read_vint(&mut r);
-        
-        let mut elements: Vec<Element> = Vec::new();
-        let data_start = r.seek(SeekFrom::Current(0)).unwrap();
-        let mut offset = start;
+        if elem.kind == ElementKind::Master {
+            let start = self.reader.seek(SeekFrom::Current(0)).unwrap();
+            let mut offset = start;
 
-        while offset < data_start + master.size {
-            let elem = EBMLParser::parse_element(&mut r);
-            elements.push(elem);
-
-            offset = r.seek(SeekFrom::Current(0)).unwrap();
+            while offset < start + elem.size {
+                children.push(self.build_node_tree());
+                offset = self.reader.seek(SeekFrom::Current(0)).unwrap();
+            }    
         }
 
-        MasterElement {
-            master: master,
-            elements: elements,
+        Node {
+            element: elem,
+            children: children,
         }
     }
 
-    fn parse_element(mut r: impl Read + Seek) -> Element {
-        let id_size = count_leading_zeros(read_bytes(&mut r, 1)[0]) + 1;
-        r.seek(SeekFrom::Current(-1)).unwrap();
+    fn parse_element(&mut self) -> Element {
+        let id_size = count_leading_zeros(read_bytes(&mut self.reader, 1)[0]) + 1;
+        self.reader.seek(SeekFrom::Current(-1)).unwrap();
 
-        let id = bytes_to_uint(&read_bytes(&mut r, id_size as usize));
-        let size = read_vint(&mut r);
-        let data = ElementData(read_bytes(r, size as usize));
+        let id = bytes_to_uint(&read_bytes(&mut self.reader, id_size as usize));
+        let size = read_vint(&mut self.reader);
 
         let kind = match id {
+            0xe7 | 0xab | 0xcc |
+            0xd7 | 0x83 | 0xb9 |
+            0x88 | 0x9c | 0x9a |
+            0xb0 | 0xba | 0x9f |
+            0xb3 | 0xf1 | 0xf7 |
             0x4286 | 0x42f7 | 0x42f2 |
-            0x42f3 | 0x4287 | 0x4285    => ElementKind::UInt,
-            0x4282                      => ElementKind::String,
-            _                           => ElementKind::Master,
+            0x42f3 | 0x4287 | 0x4285 |
+            0x53ac | 0x73c5 | 0x55aa |
+            0x56aa | 0x56bb | 0x53b8 |
+            0x53c0 |
+            0x2ad7b1 | 0x23e383         => ElementKind::UInt,
+
+            0xfb |
+            0x75a2                      => ElementKind::SInt,
+
+            0xb5 |
+            0x4489                      => ElementKind::Float,
+
+            0x4461                      => ElementKind::Date,
+
+            0x86 |
+            0x4282 |
+            0x22b59c                    => ElementKind::String,
+
+            0x9b |
+            0x4d80 | 0x5741 | 0x536e |
+            0x258688                    => ElementKind::UTF8,
+
+            0xa3 | 0xa1 |
+            0xec | 0xbf |
+            0x53ab | 0x63a2             => ElementKind::Binary,
+
+            0xa0 | 0x8e | 0xe8 |
+            0xae | 0xe0 | 0xe1 |
+            0xbb | 0xb7 |
+            0x4dbb |
+            0x1a45dfa3 | 0x18538067 |
+            0x114d9b74 | 0x1549a966 |
+            0x1f43b675 | 0x1654ae6b |
+            0x1c53bb6b                  => ElementKind::Master,
+            
+            _                           => ElementKind::Unknown,
         };
+
+        let data = if kind == ElementKind::Master {
+            ElementData(Vec::new())
+        } else {
+            ElementData(read_bytes(&mut self.reader, size as usize))
+        };
+
 
         Element {
             id: id,
             size: size,
             kind: kind,
             data: data,
+        }
+    }
+
+    fn check_magic_number(&mut self) -> Result<bool, IOError> {
+        let mut buf: [u8; 4] = [0; 4];
+        match self.reader.read(&mut buf) {
+            Ok(size) => {
+                if size != 4 {
+                    Ok(false)
+                } else if buf != MAGIC_NUMBER {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            },
+            Err(e) => Err(e),
         }
     }
 }
@@ -127,7 +191,7 @@ impl Debug for Element {
             ElementKind::UTF8   => self.data.into_string(),
             ElementKind::UInt   => self.data.into_uint().to_string(),
             ElementKind::SInt   => self.data.into_int().to_string(),
-            _                   => String::from("[SubElements]"),
+            _                   => String::from("[]"),
         };
         write!(
             f, 
@@ -154,21 +218,6 @@ impl ElementData {
     }
 }
 
-fn check_magic_number(mut r: impl Read) -> Result<bool, IOError> {
-    let mut buf: [u8; 4] = [0; 4];
-    match r.read(&mut buf) {
-        Ok(size) => {
-            if size != 4 {
-                Ok(false)
-            } else if buf != MAGIC_NUMBER {
-                Ok(false)
-            } else {
-                Ok(true)
-            }
-        },
-        Err(e) => Err(e),
-    }
-}
 
 fn read_vint(mut r: impl Read) -> u64 {
     let mut buf = vec![0; 1];
