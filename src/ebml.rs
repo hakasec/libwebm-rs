@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Error as IOError};
 use std::fmt::{Debug, Formatter, Error as FmtError};
 
@@ -24,12 +25,12 @@ pub enum ElementKind {
 #[derive(Clone)]
 pub struct ElementData(Vec<u8>);
 
-pub struct EBMLParser<T: Read + Seek> {
+pub struct WebmReader<T: Read + Seek> {
     reader: T,
 }
 
 #[derive(Debug)]
-pub struct Document {
+pub struct WebmFile {
     pub header: Node,
     pub root: Node,
 }
@@ -48,14 +49,14 @@ pub struct Element {
     pub data: ElementData,
 }
 
-impl<T: Read + Seek> EBMLParser<T> {
-    pub fn new(r: T) -> EBMLParser<T> {
-        EBMLParser {
+impl<T: Read + Seek> WebmReader<T> {
+    pub fn new(r: T) -> WebmReader<T> {
+        WebmReader {
             reader: r,
         }
     }
 
-    pub fn parse(&mut self) -> Document {
+    pub fn parse(&mut self) -> Result<WebmFile, ()> {
         // check magic number
         match self.check_magic_number() {
             Ok(v) => {
@@ -74,10 +75,10 @@ impl<T: Read + Seek> EBMLParser<T> {
         // parse segment
         let root = self.build_node_tree();
 
-        Document {
+        Ok(WebmFile {
             header: header,
             root: root,
-        }
+        })
     }
 
     fn build_node_tree(&mut self) -> Node {
@@ -184,6 +185,12 @@ impl<T: Read + Seek> EBMLParser<T> {
     }
 }
 
+impl WebmFile {
+    pub fn open(file: File) -> WebmFile {
+        WebmReader::new(file).parse().unwrap()
+    }
+}
+
 impl Debug for Element {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
         let data_str = match self.kind {
@@ -265,20 +272,20 @@ fn bytes_to_int(bytes: &[u8]) -> i64 {
 }
 
 fn bytes_to_string(bytes: &[u8]) -> String {
-    let mut s = String::new();
-    for c in bytes.iter() {
-        s.push(*c as char);
-    }
-    s
+    String::from_utf8(bytes.to_vec()).unwrap()
 }
 
 fn count_leading_zeros(mut byte: u8) -> u8 {
-    let mut count = 0;
-    while byte & 128 != 128 && byte != 0 {
-        byte = byte << 1;
-        count += 1;
+    if byte == 0x0 {
+        8
+    } else {
+        let mut count = 0;
+        while byte & 128 != 128 {
+            byte = byte << 1;
+            count += 1;
+        }
+        count
     }
-    count
 }
 
 #[cfg(test)]
@@ -286,14 +293,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bytes_to_int_test() {
+    fn test_bytes_to_int() {
         assert_eq!(bytes_to_int(&[0x7F]), 127);
         assert_eq!(bytes_to_int(&[0xFE]), -2);
         assert_eq!(bytes_to_int(&[0x00, 0x05]), 5);
     }
 
     #[test]
-    fn bytes_to_uint_test() {
+    fn test_bytes_to_uint() {
         assert_eq!(bytes_to_uint(&[0xFF]), 255);
+    }
+
+    #[test]
+    fn test_count_leading_zeros() {
+        assert_eq!(count_leading_zeros(0x81), 0);
+        assert_eq!(count_leading_zeros(0xe), 4);
+        assert_eq!(count_leading_zeros(0x0), 8);
+        assert_eq!(count_leading_zeros(0x1), 7);
+    }
+
+    #[test]
+    fn test_bytes_to_string() {
+        assert_eq!(bytes_to_string(&[0x41, 0x42, 0x43]), "ABC");
+        assert_eq!(bytes_to_string(&[0xe4, 0xbd, 0x95]), "何");
     }
 }
