@@ -2,6 +2,51 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Error as IOError};
 use std::fmt::{Debug, Formatter, Error as FmtError};
 
+macro_rules! node_type {
+    ($name:ident, $base:ty) => {
+        #[derive(Debug, Clone)]
+        pub struct $name($base);
+
+        impl $name {
+            pub fn get_element(&self) -> Element {
+                self.0.element.clone()
+            }
+
+            pub fn get_children(&self) -> Vec<Node> {
+                self.0.children.clone()
+            }
+        }
+    };
+}
+
+macro_rules! filter_nodes {
+    ($list:expr, $id:expr) => {
+        $list.clone()
+            .into_iter()
+            .filter(|node| node.element.id == $id)
+            .collect()
+    };
+    ($list:expr, $nty:ident, $id:expr) => {
+        $list.clone()
+            .into_iter()
+            .filter(|node| node.element.id == $id)
+            .map(|node| $nty(node))
+            .collect::<Vec<$nty>>()
+    };
+}
+
+macro_rules! find_node {
+    ($list:expr, $id:expr) => {
+        $list.clone()
+            .into_iter()
+            .find(|node| node.element.id == $id)
+            .unwrap()
+    };
+    ($list:expr, $nty:ty, $id:expr) => {
+        $nty(find_node!($list, $id))
+    };
+}
+
 const MAGIC_NUMBER: [u8; 4] = [
     0x1a,
     0x45,
@@ -31,15 +76,45 @@ pub struct WebmReader<T: Read + Seek> {
 
 #[derive(Debug)]
 pub struct WebmFile {
-    pub header: Node,
-    pub root: Node,
+    pub header: EBMLHeaderNode,
+    pub root: SegmentNode,
 }
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    pub element: Element,
-    pub children: Vec<Node>,
+    element: Element,
+    children: Vec<Node>,
 }
+
+// bit of a hack, but seems to work well enough
+node_type!(EBMLHeaderNode, Node);
+node_type!(SegmentNode, Node);
+node_type!(SeekHeadNode, Node);
+node_type!(SeekNode, Node);
+node_type!(InfoNode, Node);
+node_type!(ClusterNode, Node);
+node_type!(BlockGroupNode, Node);
+node_type!(SlicesNode, Node);
+node_type!(TracksNode, Node);
+node_type!(TrackEntryNode, Node);
+node_type!(VideoNode, Node);
+node_type!(ProjectionNode, Node);
+node_type!(AudioNode, Node);
+node_type!(ContentEncodingsNode, Node);
+node_type!(ContentEncodingNode, Node);
+node_type!(ContentEncryptionNode, Node);
+node_type!(ContentEncAESSettingsNode, Node);
+node_type!(CuesNode, Node);
+node_type!(CuePointNode, Node);
+node_type!(CueTrackPositionsNode, Node);
+node_type!(ChaptersNode, Node);
+node_type!(EditionEntryNode, Node);
+node_type!(ChapterAtomNode, Node);
+node_type!(ChapterDisplayNode, Node);
+node_type!(TagsNode, Node);
+node_type!(TagNode, Node);
+node_type!(TargetsNode, Node);
+node_type!(SimpleTagNode, Node);
 
 #[derive(Clone)]
 pub struct Element {
@@ -76,8 +151,8 @@ impl<T: Read + Seek> WebmReader<T> {
         let root = self.build_node_tree();
 
         Ok(WebmFile {
-            header: header,
-            root: root,
+            header: EBMLHeaderNode(header),
+            root: SegmentNode(root),
         })
     }
 
@@ -188,6 +263,73 @@ impl<T: Read + Seek> WebmReader<T> {
 impl WebmFile {
     pub fn open(file: File) -> WebmFile {
         WebmReader::new(file).parse().unwrap()
+    }
+}
+
+impl Node {
+    pub fn get_element(&self) -> Element {
+        self.element.clone()
+    }
+
+    pub fn get_children(&self) -> Vec<Node> {
+        self.children.clone()
+    }
+}
+
+impl EBMLHeaderNode {
+    pub fn get_version(&self) -> u64 {
+        find_node!(self.0.children, 0x4286)
+            .element
+            .data
+            .into_uint()
+    }
+
+    pub fn get_read_version(&self) -> u64 {
+        find_node!(self.0.children, 0x42f7)
+            .element
+            .data
+            .into_uint()
+    }
+
+    pub fn get_max_id_length(&self) -> u64 {
+        find_node!(self.0.children, 0x42f2)
+            .element
+            .data
+            .into_uint()
+    }
+
+    pub fn get_max_size_length(&self) -> u64 {
+        find_node!(self.0.children, 0x42f3)
+            .element
+            .data
+            .into_uint()
+    }
+
+    pub fn get_doc_type(&self) -> String {
+        find_node!(self.0.children, 0x4282)
+            .element
+            .data
+            .into_string()
+    }
+
+    pub fn get_doc_type_version(&self) -> u64 {
+        find_node!(self.0.children, 0x4287)
+            .element
+            .data
+            .into_uint()
+    }
+
+    pub fn get_doc_type_read_version(&self) -> u64 {
+        find_node!(self.0.children, 0x4285)
+            .element
+            .data
+            .into_uint()
+    }
+}
+
+impl SegmentNode {
+    pub fn get_clusters(&self) -> Vec<ClusterNode> {
+        filter_nodes!(self.0.children, ClusterNode, 0x1F43B675)
     }
 }
 
