@@ -6,22 +6,20 @@ mod tests {
     use super::ebml;
 
     #[test]
-    fn it_works() {
-        let file = "/home/declan/Documents/rat-bday/rats_birthday.webm";
+    fn test_parser() {
+        let file = "./sample/big-buck-bunny_trailer.webm";
         let f = File::open(file).unwrap();
-        println!("{:?}", ebml::EBMLParser::parse(f));
-        // let file = "/home/declan/Downloads/SampleVideo_1280x720_10mb.mkv";
-        // let f = File::open(file).unwrap();
-        // println!("{:?}", ebml::EBMLParser::parse(f));
-        assert_eq!(1, 2);
+        let document = ebml::WebmReader::new(f).parse().unwrap();
+        assert_eq!(document.header.get_element().id, 0x1a45dfa3);
+        assert_eq!(document.root.get_element().id, 0x18538067);
     }
 
     #[test]
-    fn test_parser() {
-        let file = "/home/declan/Documents/rat-bday/rats_birthday.webm";
+    fn test_file() {
+        let file = "./sample/big-buck-bunny_trailer.webm";
         let f = File::open(file).unwrap();
-        let document = ebml::EBMLParser::parse(f);
-        assert_eq!(document.header.master.id, 0x1a45dfa3);
-        assert_eq!(document.root.master.id, 0x18538067);
+        let document = ebml::WebmFile::open(f);
+        assert_eq!(document.header.get_element().id, 0x1a45dfa3);
+        assert_eq!(document.root.get_element().id, 0x18538067);
     }
 }
