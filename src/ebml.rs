@@ -328,8 +328,91 @@ impl EBMLHeaderNode {
 }
 
 impl SegmentNode {
+    pub fn get_seek_head_nodes(&self) -> Vec<SeekHeadNode> {
+        filter_nodes!(self.0.children, SeekHeadNode, 0x114d9b74)
+    }
+
+    pub fn get_info_nodes(&self) -> Vec<InfoNode> {
+        filter_nodes!(self.0.children, InfoNode, 0x1549a966)
+    }
+
     pub fn get_clusters(&self) -> Vec<ClusterNode> {
         filter_nodes!(self.0.children, ClusterNode, 0x1F43B675)
+    }
+
+    pub fn get_tracks(&self) -> Vec<TracksNode> {
+        filter_nodes!(self.0.children, TracksNode, 0x1654ae6b)
+    }
+
+    pub fn get_cues(&self) -> Vec<CuesNode> {
+        filter_nodes!(self.0.children, CuesNode, 0x1c53bb6b)
+    }
+
+    pub fn get_chapters(&self) -> Vec<ChaptersNode> {
+        filter_nodes!(self.0.children, ChaptersNode, 0x1043a770)
+    }
+
+    pub fn get_tags(&self) -> Vec<TagsNode> {
+        filter_nodes!(self.0.children, TagsNode, 0x1254c367)
+    }
+}
+
+impl SeekHeadNode {
+    pub fn get_seek_nodes(&self) -> Vec<SeekNode> {
+        filter_nodes!(self.0.children, SeekNode, 0x4dbb)
+    }
+}
+
+impl SeekNode {
+    pub fn get_seek_id(&self) -> Vec<u8> {
+        find_node!(self.0.children, 0x53ab)
+            .element
+            .data
+            .into_vec()
+    }
+
+    pub fn get_seek_position(&self) -> u64 {
+        find_node!(self.0.children, 0x53ac)
+            .element
+            .data
+            .into_uint()
+    }
+}
+
+impl InfoNode {
+    pub fn get_timestamp_scale(&self) -> u64 {
+        find_node!(self.0.children, 0x2ad7b1)
+            .element
+            .data
+            .into_uint()
+    }
+
+    pub fn get_duration(&self) -> f64 {
+        find_node!(self.0.children, 0x4489)
+            .element
+            .data
+            .into_float()
+    }
+
+    pub fn get_date_created(&self) -> i64 {
+        find_node!(self.0.children, 0x4461)
+            .element
+            .data
+            .into_int()
+    }
+
+    pub fn get_muxing_app(&self) -> String {
+        find_node!(self.0.children, 0x4d80)
+            .element
+            .data
+            .into_string()
+    }
+
+    pub fn get_writing_app(&self) -> String {
+        find_node!(self.0.children, 0x5741)
+            .element
+            .data
+            .into_string()
     }
 }
 
@@ -339,8 +422,9 @@ impl Debug for Element {
             ElementKind::String |
             ElementKind::UTF8   => self.data.into_string(),
             ElementKind::UInt   => self.data.into_uint().to_string(),
-            ElementKind::SInt   => self.data.into_int().to_string(),
-            _                   => String::from("[]"),
+            ElementKind::SInt |
+            ElementKind::Date   => self.data.into_int().to_string(),
+            _                   => format!("{:x?}", self.data.into_vec()),
         };
         write!(
             f, 
@@ -364,6 +448,14 @@ impl ElementData {
 
     pub fn into_int(&self) -> i64 {
         bytes_to_int(&self.0)
+    }
+
+    pub fn into_float(&self) -> f64 {
+        bytes_to_float(&self.0)
+    }
+
+    pub fn into_vec(&self) -> Vec<u8> {
+        self.0.clone()
     }
 }
 
@@ -413,6 +505,15 @@ fn bytes_to_int(bytes: &[u8]) -> i64 {
     result
 }
 
+fn bytes_to_float(bytes: &[u8]) -> f64 {
+    let bits = bytes_to_uint(bytes);
+    if bytes.len() > 4 {
+        f64::from_bits(bits)
+    } else {
+        f32::from_bits(bits as u32) as f64
+    }
+}
+
 fn bytes_to_string(bytes: &[u8]) -> String {
     String::from_utf8(bytes.to_vec()).unwrap()
 }
@@ -458,5 +559,14 @@ mod tests {
     fn test_bytes_to_string() {
         assert_eq!(bytes_to_string(&[0x41, 0x42, 0x43]), "ABC");
         assert_eq!(bytes_to_string(&[0xe4, 0xbd, 0x95]), "何");
+    }
+
+    #[test]
+    fn test_bytes_to_float() {
+        assert_eq!(
+            bytes_to_float(&[0x40, 0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]), 
+            12.5
+        );
+        assert_eq!(bytes_to_float(&[0x47, 0xae, 0x88, 0x80]), 89361.0);
     }
 }
