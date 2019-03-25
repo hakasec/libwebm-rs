@@ -21,15 +21,19 @@ macro_rules! node_type {
     };
 }
 
-macro_rules! filter_nodes {
+macro_rules! filter_nodes_raw {
     ($list:expr, $id:expr) => {
         $list.into_iter()
             .filter(|node| node.element.id == $id)
-            .collect()
+    }
+}
+
+macro_rules! filter_nodes {
+    ($list:expr, $id:expr) => {
+        filter_nodes_raw!($list, $id).collect()
     };
     ($list:expr, $nty:ident, $id:expr) => {
-        $list.into_iter()
-            .filter(|node| node.element.id == $id)
+        filter_nodes_raw!($list, $id)
             .map(|node| $nty(node))
             .collect::<Vec<$nty>>()
     };
@@ -40,12 +44,24 @@ macro_rules! find_node {
         $list.into_iter()
             .find(|node| node.element.id == $id)
     };
-    ($list:expr, $nty:ty, $id:expr) => (Option<$nty>(find_node!($list, $id)));
+    ($list:expr, $nty:ident, $id:expr) => {
+        match find_node!($list, $id) {
+            Some(n) => Some($nty(n)),
+            None => None,
+        }
+    };
 }
 
 macro_rules! find_node_data {
-    ($list:expr, $id:expr) => (find_node!($list, $id).unwrap().element.data);
-    ($list:expr, $nty:ty, $id:expr) => ($nty(find_node_data!($list, $id)));
+    ($list:expr, $id:expr) => {
+        match find_node!($list, $id) {
+            Some(n) => Some(n.element.data),
+            None => None
+        }
+    };
+    ($list:expr, $nty:ty, $id:expr) => (
+        Option<$nty>(find_node_data!($list, $id))
+    );
 }
 
 #[allow(dead_code)]
@@ -285,31 +301,31 @@ impl NodeTrait for Node {
 
 impl EBMLHeaderNode {
     pub fn get_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x4286).into_uint()
+        find_node_data!(self.get_children(), 0x4286).unwrap().into_uint()
     }
 
     pub fn get_read_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x42f7).into_uint()
+        find_node_data!(self.get_children(), 0x42f7).unwrap().into_uint()
     }
 
     pub fn get_max_id_length(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x42f2).into_uint()
+        find_node_data!(self.get_children(), 0x42f2).unwrap().into_uint()
     }
 
     pub fn get_max_size_length(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x42f3).into_uint()
+        find_node_data!(self.get_children(), 0x42f3).unwrap().into_uint()
     }
 
     pub fn get_doc_type(&self) -> String {
-        find_node_data!(self.get_children(), 0x4282).into_string()
+        find_node_data!(self.get_children(), 0x4282).unwrap().into_string()
     }
 
     pub fn get_doc_type_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x4287).into_uint()
+        find_node_data!(self.get_children(), 0x4287).unwrap().into_uint()
     }
 
     pub fn get_doc_type_read_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x4285).into_uint()
+        find_node_data!(self.get_children(), 0x4285).unwrap().into_uint()
     }
 }
 
@@ -351,47 +367,88 @@ impl SeekHeadNode {
 
 impl SeekNode {
     pub fn get_seek_id(&self) -> Vec<u8> {
-        find_node_data!(self.get_children(), 0x53ab).into_vec()
+        find_node_data!(self.get_children(), 0x53ab).unwrap().into_vec()
     }
 
     pub fn get_seek_position(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x53ac).into_uint()
+        find_node_data!(self.get_children(), 0x53ac).unwrap().into_uint()
     }
 }
 
 impl InfoNode {
     pub fn get_timestamp_scale(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x2ad7b1).into_uint()
+        find_node_data!(self.get_children(), 0x2ad7b1).unwrap().into_uint()
     }
 
-    pub fn get_duration(&self) -> f64 {
-        find_node_data!(self.get_children(), 0x4489).into_float()
+    pub fn get_duration(&self) -> Option<f64> {
+        match find_node_data!(self.get_children(), 0x4489) {
+            Some(d) => Some(d.into_float()),
+            None => None,
+        }
     }
 
-    pub fn get_date_created(&self) -> i64 {
-        find_node_data!(self.get_children(), 0x4461).into_int()
+    pub fn get_date_created(&self) -> Option<i64> {
+        match find_node_data!(self.get_children(), 0x4461) {
+            Some(d) => Some(d.into_int()),
+            None => None,
+        }
     }
 
     pub fn get_muxing_app(&self) -> String {
-        find_node_data!(self.get_children(), 0x4d80).into_string()
+        find_node_data!(self.get_children(), 0x4d80).unwrap().into_string()
     }
 
     pub fn get_writing_app(&self) -> String {
-        find_node_data!(self.get_children(), 0x5741).into_string()
+        find_node_data!(self.get_children(), 0x5741).unwrap().into_string()
     }
 }
 
 impl ClusterNode {
     pub fn get_timestamp(&self) -> u64 {
-        find_node_data!(self.get_children(), 0xe7).into_uint()
+        find_node_data!(self.get_children(), 0xe7).unwrap().into_uint()
     }
 
-    pub fn get_prev_size(&self) -> u64 {
-        find_node_data!(self.get_children(), 0xab).into_uint()
+    pub fn get_prev_size(&self) -> Option<u64> {
+        match find_node_data!(self.get_children(), 0xab) {
+            Some(d) => Some(d.into_uint()),
+            None => None,
+        }
+    }
+
+    pub fn get_simple_blocks(&self) -> Vec<Node> {
+        filter_nodes!(self.get_children(), 0xa3)
+    }
+
+    pub fn get_block_groups(&self) -> Vec<BlockGroupNode> {
+        filter_nodes!(self.get_children(), BlockGroupNode, 0xa0)
     }
 }
 
-// impl Block
+impl BlockGroupNode {
+    pub fn get_block_duration(&self) -> Option<u64> {
+        match find_node_data!(self.get_children(), 0x9b) {
+            Some(d) => Some(d.into_uint()),
+            None => None,
+        }
+    }
+
+    pub fn get_reference_blocks(&self) -> Vec<i64> {
+        filter_nodes_raw!(self.get_children(), 0xfb)
+            .map(|node| node.element.data.into_int())
+            .collect()
+    }
+
+    pub fn get_discard_padding(&self) -> Option<i64> {
+        match find_node_data!(self.get_children(), 0x75a2) {
+            Some(d) => Some(d.into_int()),
+            None => None,
+        }
+    }
+
+    pub fn get_slices(&self) -> Option<SlicesNode> {
+        find_node!(self.get_children(), SlicesNode, 0x8e)
+    }
+}
 
 impl Debug for Element {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
