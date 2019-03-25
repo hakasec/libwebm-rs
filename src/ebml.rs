@@ -7,12 +7,14 @@ macro_rules! node_type {
         #[derive(Debug, Clone)]
         pub struct $name($base);
 
-        impl $name {
-            pub fn get_element(&self) -> Element {
+        impl NodeTrait for $name {
+            #[allow(dead_code)]
+            fn get_element(&self) -> Element {
                 self.0.element.clone()
             }
 
-            pub fn get_children(&self) -> Vec<Node> {
+            #[allow(dead_code)]
+            fn get_children(&self) -> Vec<Node> {
                 self.0.children.clone()
             }
         }
@@ -21,14 +23,12 @@ macro_rules! node_type {
 
 macro_rules! filter_nodes {
     ($list:expr, $id:expr) => {
-        $list.clone()
-            .into_iter()
+        $list.into_iter()
             .filter(|node| node.element.id == $id)
             .collect()
     };
     ($list:expr, $nty:ident, $id:expr) => {
-        $list.clone()
-            .into_iter()
+        $list.into_iter()
             .filter(|node| node.element.id == $id)
             .map(|node| $nty(node))
             .collect::<Vec<$nty>>()
@@ -37,16 +37,18 @@ macro_rules! filter_nodes {
 
 macro_rules! find_node {
     ($list:expr, $id:expr) => {
-        $list.clone()
-            .into_iter()
+        $list.into_iter()
             .find(|node| node.element.id == $id)
-            .unwrap()
     };
-    ($list:expr, $nty:ty, $id:expr) => {
-        $nty(find_node!($list, $id))
-    };
+    ($list:expr, $nty:ty, $id:expr) => (Option<$nty>(find_node!($list, $id)));
 }
 
+macro_rules! find_node_data {
+    ($list:expr, $id:expr) => (find_node!($list, $id).unwrap().element.data);
+    ($list:expr, $nty:ty, $id:expr) => ($nty(find_node_data!($list, $id)));
+}
+
+#[allow(dead_code)]
 const MAGIC_NUMBER: [u8; 4] = [
     0x1a,
     0x45,
@@ -84,6 +86,11 @@ pub struct WebmFile {
 pub struct Node {
     element: Element,
     children: Vec<Node>,
+}
+
+pub trait NodeTrait {
+    fn get_element(&self) -> Element;
+    fn get_children(&self) -> Vec<Node>;
 }
 
 // bit of a hack, but seems to work well enough
@@ -266,155 +273,125 @@ impl WebmFile {
     }
 }
 
-impl Node {
-    pub fn get_element(&self) -> Element {
+impl NodeTrait for Node {
+    fn get_element(&self) -> Element {
         self.element.clone()
     }
 
-    pub fn get_children(&self) -> Vec<Node> {
+    fn get_children(&self) -> Vec<Node> {
         self.children.clone()
     }
 }
 
 impl EBMLHeaderNode {
     pub fn get_version(&self) -> u64 {
-        find_node!(self.0.children, 0x4286)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x4286).into_uint()
     }
 
     pub fn get_read_version(&self) -> u64 {
-        find_node!(self.0.children, 0x42f7)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x42f7).into_uint()
     }
 
     pub fn get_max_id_length(&self) -> u64 {
-        find_node!(self.0.children, 0x42f2)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x42f2).into_uint()
     }
 
     pub fn get_max_size_length(&self) -> u64 {
-        find_node!(self.0.children, 0x42f3)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x42f3).into_uint()
     }
 
     pub fn get_doc_type(&self) -> String {
-        find_node!(self.0.children, 0x4282)
-            .element
-            .data
-            .into_string()
+        find_node_data!(self.get_children(), 0x4282).into_string()
     }
 
     pub fn get_doc_type_version(&self) -> u64 {
-        find_node!(self.0.children, 0x4287)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x4287).into_uint()
     }
 
     pub fn get_doc_type_read_version(&self) -> u64 {
-        find_node!(self.0.children, 0x4285)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x4285).into_uint()
     }
 }
 
 impl SegmentNode {
     pub fn get_seek_head_nodes(&self) -> Vec<SeekHeadNode> {
-        filter_nodes!(self.0.children, SeekHeadNode, 0x114d9b74)
+        filter_nodes!(self.get_children(), SeekHeadNode, 0x114d9b74)
     }
 
     pub fn get_info_nodes(&self) -> Vec<InfoNode> {
-        filter_nodes!(self.0.children, InfoNode, 0x1549a966)
+        filter_nodes!(self.get_children(), InfoNode, 0x1549a966)
     }
 
     pub fn get_clusters(&self) -> Vec<ClusterNode> {
-        filter_nodes!(self.0.children, ClusterNode, 0x1F43B675)
+        filter_nodes!(self.get_children(), ClusterNode, 0x1F43B675)
     }
 
     pub fn get_tracks(&self) -> Vec<TracksNode> {
-        filter_nodes!(self.0.children, TracksNode, 0x1654ae6b)
+        filter_nodes!(self.get_children(), TracksNode, 0x1654ae6b)
     }
 
     pub fn get_cues(&self) -> Vec<CuesNode> {
-        filter_nodes!(self.0.children, CuesNode, 0x1c53bb6b)
+        filter_nodes!(self.get_children(), CuesNode, 0x1c53bb6b)
     }
 
     pub fn get_chapters(&self) -> Vec<ChaptersNode> {
-        filter_nodes!(self.0.children, ChaptersNode, 0x1043a770)
+        filter_nodes!(self.get_children(), ChaptersNode, 0x1043a770)
     }
 
     pub fn get_tags(&self) -> Vec<TagsNode> {
-        filter_nodes!(self.0.children, TagsNode, 0x1254c367)
+        filter_nodes!(self.get_children(), TagsNode, 0x1254c367)
     }
 }
 
 impl SeekHeadNode {
     pub fn get_seek_nodes(&self) -> Vec<SeekNode> {
-        filter_nodes!(self.0.children, SeekNode, 0x4dbb)
+        filter_nodes!(self.get_children(), SeekNode, 0x4dbb)
     }
 }
 
 impl SeekNode {
     pub fn get_seek_id(&self) -> Vec<u8> {
-        find_node!(self.0.children, 0x53ab)
-            .element
-            .data
-            .into_vec()
+        find_node_data!(self.get_children(), 0x53ab).into_vec()
     }
 
     pub fn get_seek_position(&self) -> u64 {
-        find_node!(self.0.children, 0x53ac)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x53ac).into_uint()
     }
 }
 
 impl InfoNode {
     pub fn get_timestamp_scale(&self) -> u64 {
-        find_node!(self.0.children, 0x2ad7b1)
-            .element
-            .data
-            .into_uint()
+        find_node_data!(self.get_children(), 0x2ad7b1).into_uint()
     }
 
     pub fn get_duration(&self) -> f64 {
-        find_node!(self.0.children, 0x4489)
-            .element
-            .data
-            .into_float()
+        find_node_data!(self.get_children(), 0x4489).into_float()
     }
 
     pub fn get_date_created(&self) -> i64 {
-        find_node!(self.0.children, 0x4461)
-            .element
-            .data
-            .into_int()
+        find_node_data!(self.get_children(), 0x4461).into_int()
     }
 
     pub fn get_muxing_app(&self) -> String {
-        find_node!(self.0.children, 0x4d80)
-            .element
-            .data
-            .into_string()
+        find_node_data!(self.get_children(), 0x4d80).into_string()
     }
 
     pub fn get_writing_app(&self) -> String {
-        find_node!(self.0.children, 0x5741)
-            .element
-            .data
-            .into_string()
+        find_node_data!(self.get_children(), 0x5741).into_string()
     }
 }
+
+impl ClusterNode {
+    pub fn get_timestamp(&self) -> u64 {
+        find_node_data!(self.get_children(), 0xe7).into_uint()
+    }
+
+    pub fn get_prev_size(&self) -> u64 {
+        find_node_data!(self.get_children(), 0xab).into_uint()
+    }
+}
+
+// impl Block
 
 impl Debug for Element {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
