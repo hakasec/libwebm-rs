@@ -673,6 +673,50 @@ impl AudioNode {
     }
 }
 
+impl ContentEncodingsNode {
+    pub fn get_encodings(&self) -> Vec<ContentEncodingNode> {
+        filter_nodes!(self.get_children(), ContentEncodingNode, 0x6240)
+    }
+}
+
+impl ContentEncodingNode {
+    pub fn get_order(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x5031)
+    }
+
+    pub fn get_scope(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x5032)
+    }
+
+    pub fn get_type(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x5033)
+    }
+
+    pub fn get_encryption_node(&self) -> ContentEncryptionNode {
+        find_node!(self.get_children(), ContentEncryptionNode, 0x5035).unwrap()
+    }
+}
+
+impl ContentEncryptionNode {
+    pub fn get_algorithm_type(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x47e1)
+    }
+
+    pub fn get_key_id(&self) -> Option<Vec<u8>> {
+        find_node_data_opt!(self.get_children(), 0x47e2)
+    }
+
+    pub fn get_aes_settings(&self) -> Option<ContentEncAESSettingsNode> {
+        find_node!(self.get_children(), ContentEncAESSettingsNode, 0x47e7)
+    }
+}
+
+impl ContentEncAESSettingsNode {
+    pub fn get_mode(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x47e8)
+    }
+}
+
 impl Debug for Element {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
         let data_str = match self.kind {
