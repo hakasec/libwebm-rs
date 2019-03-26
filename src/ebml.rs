@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Error as IOError};
 use std::fmt::{Debug, Formatter, Error as FmtError};
 
+// Generate a node type from some base node
 macro_rules! node_type {
     ($name:ident, $base:ty) => {
         #[derive(Debug, Clone)]
@@ -21,6 +22,7 @@ macro_rules! node_type {
     };
 }
 
+// Filter nodes by ID from list and don't collect
 macro_rules! filter_nodes_raw {
     ($list:expr, $id:expr) => {
         $list.into_iter()
@@ -28,10 +30,12 @@ macro_rules! filter_nodes_raw {
     }
 }
 
+// Filter nodes and collect from lists
 macro_rules! filter_nodes {
     ($list:expr, $id:expr) => {
         filter_nodes_raw!($list, $id).collect()
     };
+    // Convert to another node type before collection
     ($list:expr, $nty:ident, $id:expr) => {
         filter_nodes_raw!($list, $id)
             .map(|node| $nty(node))
@@ -39,11 +43,13 @@ macro_rules! filter_nodes {
     };
 }
 
+// Find a single node in a list by it's ID
 macro_rules! find_node {
     ($list:expr, $id:expr) => {
         $list.into_iter()
             .find(|node| node.element.id == $id)
     };
+    // Find and convert to a given node type
     ($list:expr, $nty:ident, $id:expr) => {
         match find_node!($list, $id) {
             Some(n) => Some($nty(n)),
@@ -52,6 +58,7 @@ macro_rules! find_node {
     };
 }
 
+// Return the data from a node in list
 macro_rules! find_node_data {
     ($list:expr, $id:expr) => {
         match find_node!($list, $id) {
@@ -61,6 +68,24 @@ macro_rules! find_node_data {
     };
 }
 
+// Return a node's data and call into to convert type. Wrap result in Option
+macro_rules! find_node_data_opt {
+    ($list:expr, $id:expr) => {
+        match find_node_data!($list, $id) {
+            Some(d) => Some(d.into()),
+            None => None,
+        }
+    };
+}
+
+// Return a node's data, unwrap, and convert
+macro_rules! find_node_data_mand {
+    ($list:expr, $id:expr) => {
+        find_node_data!($list, $id).unwrap().into()
+    };
+}
+
+// Magic number for webm files
 #[allow(dead_code)]
 const MAGIC_NUMBER: [u8; 4] = [
     0x1a,
@@ -176,9 +201,11 @@ impl<T: Read + Seek> WebmReader<T> {
     }
 
     fn build_node_tree(&mut self) -> Node {
+        // parse next element
         let elem = self.parse_element();
         let mut children: Vec<Node> = Vec::new();
         
+        // if elem is a master, build child node tree
         if elem.kind == ElementKind::Master {
             let start = self.reader.seek(SeekFrom::Current(0)).unwrap();
             let mut offset = start;
@@ -196,12 +223,17 @@ impl<T: Read + Seek> WebmReader<T> {
     }
 
     fn parse_element(&mut self) -> Element {
+        // get the ID size
         let id_size = count_leading_zeros(read_bytes(&mut self.reader, 1)[0]) + 1;
+        // seek back one byte
         self.reader.seek(SeekFrom::Current(-1)).unwrap();
 
+        // read ID
         let id = bytes_to_uint(&read_bytes(&mut self.reader, id_size as usize));
+        // read next vint
         let size = read_vint(&mut self.reader);
 
+        // Match all IDs to a given element type
         let kind = match id {
             0xe7 | 0xab | 0xcc |
             0xd7 | 0x83 | 0xb9 |
@@ -243,10 +275,13 @@ impl<T: Read + Seek> WebmReader<T> {
             0x114d9b74 | 0x1549a966 |
             0x1f43b675 | 0x1654ae6b |
             0x1c53bb6b                  => ElementKind::Master,
-            
+
+            // Failsafe, we can check for these in testing
             _                           => ElementKind::Unknown,
         };
 
+        // assign the element data
+        // if master, ignore data
         let data = if kind == ElementKind::Master {
             ElementData(Vec::new())
         } else {
@@ -529,6 +564,28 @@ impl TrackEntryNode {
 
     pub fn get_seek_preroll(&self) -> u64 {
         find_node_data!(self.get_children(), 0x56bb).unwrap().into()
+    }
+}
+
+impl VideoNode {
+    pub fn get_interlacing_flag(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x9a)
+    }
+
+    pub fn get_stereo_mode(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x53b8)
+    }
+
+    pub fn get_alpha_mode(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x53c0)
+    }
+
+    pub fn get_pixel_width(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0xb0)
+    }
+
+    pub fn get_pixel_height(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0xba)
     }
 }
 
