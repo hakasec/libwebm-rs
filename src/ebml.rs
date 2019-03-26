@@ -565,6 +565,18 @@ impl TrackEntryNode {
     pub fn get_seek_preroll(&self) -> u64 {
         find_node_data!(self.get_children(), 0x56bb).unwrap().into()
     }
+
+    pub fn get_video_settings(&self) -> Option<VideoNode> {
+        find_node!(self.get_children(), VideoNode, 0xe0)
+    }
+
+    pub fn get_audio_settings(&self) -> Option<AudioNode> {
+        find_node!(self.get_children(), AudioNode, 0xe1)
+    }
+
+    pub fn get_encoding_settings(&self) -> Option<ContentEncodingsNode> {
+        find_node!(self.get_children(), ContentEncodingsNode, 0x6d80)
+    }
 }
 
 impl VideoNode {
@@ -640,6 +652,24 @@ impl ProjectionNode {
 
     pub fn get_pose_roll(&self) -> f64 {
         find_node_data_mand!(self.get_children(), 0x7675)
+    }
+}
+
+impl AudioNode {
+    pub fn get_sampling_frequency(&self) -> f64 {
+        find_node_data_mand!(self.get_children(), 0xb5)
+    }
+
+    pub fn get_output_sampling_frequency(&self) -> Option<f64> {
+        find_node_data_opt!(self.get_children(), 0x78b5)
+    }
+
+    pub fn get_num_channels(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x9f)
+    }
+
+    pub fn get_bit_depth(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x6264)
     }
 }
 
