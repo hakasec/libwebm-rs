@@ -59,9 +59,6 @@ macro_rules! find_node_data {
             None => None
         }
     };
-    ($list:expr, $nty:ty, $id:expr) => (
-        Option<$nty>(find_node_data!($list, $id))
-    );
 }
 
 #[allow(dead_code)]
@@ -169,13 +166,12 @@ impl<T: Read + Seek> WebmReader<T> {
         self.reader.seek(SeekFrom::Start(0)).unwrap();
 
         // parse master element
-        let header = self.build_node_tree();
-        // parse segment
-        let root = self.build_node_tree();
-
+        let header = EBMLHeaderNode(self.build_node_tree());
+        // parse segments
+        let root = SegmentNode(self.build_node_tree());
         Ok(WebmFile {
-            header: EBMLHeaderNode(header),
-            root: SegmentNode(root),
+            header: header,
+            root: root,
         })
     }
 
@@ -301,31 +297,31 @@ impl NodeTrait for Node {
 
 impl EBMLHeaderNode {
     pub fn get_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x4286).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x4286).unwrap().into()
     }
 
     pub fn get_read_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x42f7).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x42f7).unwrap().into()
     }
 
     pub fn get_max_id_length(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x42f2).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x42f2).unwrap().into()
     }
 
     pub fn get_max_size_length(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x42f3).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x42f3).unwrap().into()
     }
 
     pub fn get_doc_type(&self) -> String {
-        find_node_data!(self.get_children(), 0x4282).unwrap().into_string()
+        find_node_data!(self.get_children(), 0x4282).unwrap().into()
     }
 
     pub fn get_doc_type_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x4287).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x4287).unwrap().into()
     }
 
     pub fn get_doc_type_read_version(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x4285).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x4285).unwrap().into()
     }
 }
 
@@ -367,17 +363,17 @@ impl SeekHeadNode {
 
 impl SeekNode {
     pub fn get_seek_id(&self) -> Vec<u8> {
-        find_node_data!(self.get_children(), 0x53ab).unwrap().into_vec()
+        find_node_data!(self.get_children(), 0x53ab).unwrap().into()
     }
 
     pub fn get_seek_position(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x53ac).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x53ac).unwrap().into()
     }
 }
 
 impl InfoNode {
     pub fn get_timestamp_scale(&self) -> u64 {
-        find_node_data!(self.get_children(), 0x2ad7b1).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0x2ad7b1).unwrap().into()
     }
 
     pub fn get_duration(&self) -> Option<f64> {
@@ -395,17 +391,17 @@ impl InfoNode {
     }
 
     pub fn get_muxing_app(&self) -> String {
-        find_node_data!(self.get_children(), 0x4d80).unwrap().into_string()
+        find_node_data!(self.get_children(), 0x4d80).unwrap().into()
     }
 
     pub fn get_writing_app(&self) -> String {
-        find_node_data!(self.get_children(), 0x5741).unwrap().into_string()
+        find_node_data!(self.get_children(), 0x5741).unwrap().into()
     }
 }
 
 impl ClusterNode {
     pub fn get_timestamp(&self) -> u64 {
-        find_node_data!(self.get_children(), 0xe7).unwrap().into_uint()
+        find_node_data!(self.get_children(), 0xe7).unwrap().into()
     }
 
     pub fn get_prev_size(&self) -> Option<u64> {
@@ -447,6 +443,92 @@ impl BlockGroupNode {
 
     pub fn get_slices(&self) -> Option<SlicesNode> {
         find_node!(self.get_children(), SlicesNode, 0x8e)
+    }
+}
+
+impl TracksNode {
+    pub fn get_track_entries(&self) -> Vec<TrackEntryNode> {
+        filter_nodes!(self.get_children(), TrackEntryNode, 0xae)
+    }
+}
+
+impl TrackEntryNode {
+    pub fn get_track_number(&self) -> u64 {
+        find_node_data!(self.get_children(), 0xd7).unwrap().into()
+    }
+
+    pub fn get_track_uid(&self) -> u64 {
+        find_node_data!(self.get_children(), 0x73c5).unwrap().into()
+    }
+
+    pub fn get_track_type(&self) -> u64 {
+        find_node_data!(self.get_children(), 0x83).unwrap().into()
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        find_node_data!(self.get_children(), 0xb9).unwrap().into()
+    }
+
+    pub fn is_default(&self) -> bool {
+        find_node_data!(self.get_children(), 0x88).unwrap().into()
+    }
+
+    pub fn is_forced(&self) -> bool {
+        find_node_data!(self.get_children(), 0x55aa).unwrap().into()
+    }
+
+    pub fn is_laced(&self) -> bool {
+        find_node_data!(self.get_children(), 0x9c).unwrap().into()
+    }
+
+    pub fn get_default_duration(&self) -> Option<u64> {
+        match find_node_data!(self.get_children(), 0x23e383) {
+            Some(d) => Some(d.into()),
+            None => None,
+        }
+    }
+
+    pub fn get_name(&self) -> Option<String> {
+        match find_node_data!(self.get_children(), 0x536e) {
+            Some(d) => Some(d.into()),
+            None => None,
+        }
+    }
+
+    pub fn get_language(&self) -> Option<String> {
+        match find_node_data!(self.get_children(), 0x22b59c) {
+            Some(d) => Some(d.into()),
+            None => None,
+        }
+    }
+
+    pub fn get_codec_id(&self) -> String {
+        find_node_data!(self.get_children(), 0x86).unwrap().into()
+    }
+
+    pub fn get_codec_private(&self) -> Option<Vec<u8>> {
+        match find_node_data!(self.get_children(), 0x63a2) {
+            Some(d) => Some(d.into()),
+            None => None,
+        }
+    }
+
+    pub fn get_codec_name(&self) -> Option<String> {
+        match find_node_data!(self.get_children(), 0x258688) {
+            Some(d) => Some(d.into()),
+            None => None,
+        }
+    }
+
+    pub fn get_codec_delay(&self) -> Option<u64> {
+        match find_node_data!(self.get_children(), 0x56aa) {
+            Some(d) => Some(d.into()),
+            None => None,
+        }
+    }
+
+    pub fn get_seek_preroll(&self) -> u64 {
+        find_node_data!(self.get_children(), 0x56bb).unwrap().into()
     }
 }
 
@@ -493,6 +575,41 @@ impl ElementData {
     }
 }
 
+impl Into<String> for ElementData {
+    fn into(self) -> String {
+        self.into_string()
+    }
+}
+
+impl Into<u64> for ElementData {
+    fn into(self) -> u64 {
+        self.into_uint()
+    }
+}
+
+impl Into<i64> for ElementData {
+    fn into(self) -> i64 {
+        self.into_int()
+    }
+}
+
+impl Into<f64> for ElementData {
+    fn into(self) -> f64 {
+        self.into_float()
+    }
+}
+
+impl Into<Vec<u8>> for ElementData {
+    fn into(self) -> Vec<u8> {
+        self.into_vec()
+    }
+}
+
+impl Into<bool> for ElementData {
+    fn into(self) -> bool {
+        self.into_int() == 1
+    }
+}
 
 fn read_vint(mut r: impl Read) -> u64 {
     let mut buf = vec![0; 1];
