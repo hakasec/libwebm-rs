@@ -587,6 +587,60 @@ impl VideoNode {
     pub fn get_pixel_height(&self) -> u64 {
         find_node_data_mand!(self.get_children(), 0xba)
     }
+
+    pub fn get_pixel_crop_bottom(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54aa)
+    }
+
+    pub fn get_pixel_crop_top(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54bb)
+    }
+
+    pub fn get_pixel_crop_left(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54cc)
+    }
+
+    pub fn get_pixel_crop_right(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54dd)
+    }
+
+    pub fn get_display_width(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54b0)
+    }
+
+    pub fn get_display_height(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54ba)
+    }
+
+    pub fn get_display_unit(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54b2)
+    }
+
+    pub fn get_aspect_ratio_type(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x54b3)
+    }
+}
+
+impl ProjectionNode {
+    pub fn get_type(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x7671)
+    }
+
+    pub fn get_private(&self) -> Option<Vec<u8>> {
+        find_node_data_opt!(self.get_children(), 0x7672)
+    }
+
+    pub fn get_pose_yaw(&self) -> f64 {
+        find_node_data_mand!(self.get_children(), 0x7673)
+    }
+
+    pub fn get_pose_pitch(&self) -> f64 {
+        find_node_data_mand!(self.get_children(), 0x7674)
+    }
+
+    pub fn get_pose_roll(&self) -> f64 {
+        find_node_data_mand!(self.get_children(), 0x7675)
+    }
 }
 
 impl Debug for Element {
