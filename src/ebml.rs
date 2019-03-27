@@ -717,6 +717,36 @@ impl ContentEncAESSettingsNode {
     }
 }
 
+impl CuesNode {
+    pub fn get_cue_points(&self) -> Vec<CuePointNode> {
+        filter_nodes!(self.get_children(), CuePointNode, 0xbb)
+    }
+}
+
+impl CuePointNode {
+    pub fn get_time(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0xb3)
+    }
+
+    pub fn get_positions(&self) -> Vec<CueTrackPositionsNode> {
+        filter_nodes!(self.get_children(), CueTrackPositionsNode, 0xb7)
+    }
+}
+
+impl CueTrackPositionsNode {
+    pub fn get_track(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0xf7)
+    }
+
+    pub fn get_cluster_position(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0xf1)
+    }
+
+    pub fn get_block_number(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x5378)
+    }
+}
+
 impl Debug for Element {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
         let data_str = match self.kind {
