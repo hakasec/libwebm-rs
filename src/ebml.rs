@@ -8,14 +8,14 @@ macro_rules! node_type {
         #[derive(Debug, Clone)]
         pub struct $name($base);
 
-        impl NodeTrait for $name {
+        impl Node for $name {
             #[allow(dead_code)]
             fn get_element(&self) -> Element {
                 self.0.element.clone()
             }
 
             #[allow(dead_code)]
-            fn get_children(&self) -> Vec<Node> {
+            fn get_children(&self) -> Vec<BaseNode> {
                 self.0.children.clone()
             }
         }
@@ -121,45 +121,45 @@ pub struct WebmFile {
 }
 
 #[derive(Debug, Clone)]
-pub struct Node {
+pub struct BaseNode {
     element: Element,
-    children: Vec<Node>,
+    children: Vec<BaseNode>,
 }
 
-pub trait NodeTrait {
+pub trait Node {
     fn get_element(&self) -> Element;
-    fn get_children(&self) -> Vec<Node>;
+    fn get_children(&self) -> Vec<BaseNode>;
 }
 
 // bit of a hack, but seems to work well enough
-node_type!(EBMLHeaderNode, Node);
-node_type!(SegmentNode, Node);
-node_type!(SeekHeadNode, Node);
-node_type!(SeekNode, Node);
-node_type!(InfoNode, Node);
-node_type!(ClusterNode, Node);
-node_type!(BlockGroupNode, Node);
-node_type!(SlicesNode, Node);
-node_type!(TracksNode, Node);
-node_type!(TrackEntryNode, Node);
-node_type!(VideoNode, Node);
-node_type!(ProjectionNode, Node);
-node_type!(AudioNode, Node);
-node_type!(ContentEncodingsNode, Node);
-node_type!(ContentEncodingNode, Node);
-node_type!(ContentEncryptionNode, Node);
-node_type!(ContentEncAESSettingsNode, Node);
-node_type!(CuesNode, Node);
-node_type!(CuePointNode, Node);
-node_type!(CueTrackPositionsNode, Node);
-node_type!(ChaptersNode, Node);
-node_type!(EditionEntryNode, Node);
-node_type!(ChapterAtomNode, Node);
-node_type!(ChapterDisplayNode, Node);
-node_type!(TagsNode, Node);
-node_type!(TagNode, Node);
-node_type!(TargetsNode, Node);
-node_type!(SimpleTagNode, Node);
+node_type!(EBMLHeaderNode, BaseNode);
+node_type!(SegmentNode, BaseNode);
+node_type!(SeekHeadNode, BaseNode);
+node_type!(SeekNode, BaseNode);
+node_type!(InfoNode, BaseNode);
+node_type!(ClusterNode, BaseNode);
+node_type!(BlockGroupNode, BaseNode);
+node_type!(SlicesNode, BaseNode);
+node_type!(TracksNode, BaseNode);
+node_type!(TrackEntryNode, BaseNode);
+node_type!(VideoNode, BaseNode);
+node_type!(ProjectionNode, BaseNode);
+node_type!(AudioNode, BaseNode);
+node_type!(ContentEncodingsNode, BaseNode);
+node_type!(ContentEncodingNode, BaseNode);
+node_type!(ContentEncryptionNode, BaseNode);
+node_type!(ContentEncAESSettingsNode, BaseNode);
+node_type!(CuesNode, BaseNode);
+node_type!(CuePointNode, BaseNode);
+node_type!(CueTrackPositionsNode, BaseNode);
+node_type!(ChaptersNode, BaseNode);
+node_type!(EditionEntryNode, BaseNode);
+node_type!(ChapterAtomNode, BaseNode);
+node_type!(ChapterDisplayNode, BaseNode);
+node_type!(TagsNode, BaseNode);
+node_type!(TagNode, BaseNode);
+node_type!(TargetsNode, BaseNode);
+node_type!(SimpleTagNode, BaseNode);
 
 #[derive(Clone)]
 pub struct Element {
@@ -200,10 +200,10 @@ impl<T: Read + Seek> WebmReader<T> {
         })
     }
 
-    fn build_node_tree(&mut self) -> Node {
+    fn build_node_tree(&mut self) -> BaseNode {
         // parse next element
         let elem = self.parse_element();
-        let mut children: Vec<Node> = Vec::new();
+        let mut children: Vec<BaseNode> = Vec::new();
         
         // if elem is a master, build child node tree
         if elem.kind == ElementKind::Master {
@@ -216,7 +216,7 @@ impl<T: Read + Seek> WebmReader<T> {
             }    
         }
 
-        Node {
+        BaseNode {
             element: elem,
             children: children,
         }
@@ -320,12 +320,12 @@ impl WebmFile {
     }
 }
 
-impl NodeTrait for Node {
+impl Node for BaseNode {
     fn get_element(&self) -> Element {
         self.element.clone()
     }
 
-    fn get_children(&self) -> Vec<Node> {
+    fn get_children(&self) -> Vec<BaseNode> {
         self.children.clone()
     }
 }
@@ -446,7 +446,7 @@ impl ClusterNode {
         }
     }
 
-    pub fn get_simple_blocks(&self) -> Vec<Node> {
+    pub fn get_simple_blocks(&self) -> Vec<BaseNode> {
         filter_nodes!(self.get_children(), 0xa3)
     }
 
