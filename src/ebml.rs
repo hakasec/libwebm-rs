@@ -8,14 +8,14 @@ macro_rules! node_type {
         #[derive(Debug, Clone)]
         pub struct $name($base);
 
-        impl Node for $name {
+        impl $name {
             #[allow(dead_code)]
-            fn get_element(&self) -> Element {
+            pub fn get_element(&self) -> Element {
                 self.0.element.clone()
             }
 
             #[allow(dead_code)]
-            fn get_children(&self) -> Vec<BaseNode> {
+            pub fn get_children(&self) -> Vec<Node> {
                 self.0.children.clone()
             }
         }
@@ -120,46 +120,211 @@ pub struct WebmFile {
     pub root: SegmentNode,
 }
 
-#[derive(Debug, Clone)]
-pub struct BaseNode {
-    element: Element,
-    children: Vec<BaseNode>,
+pub struct NodeInfo<'a> {
+    id: u64,
+    name: &'a str,
 }
 
-pub trait Node {
-    fn get_element(&self) -> Element;
-    fn get_children(&self) -> Vec<BaseNode>;
+const NODE_INFOS: [NodeInfo<'static>; 122] = [
+    NodeInfo { id: 0x1a45dfa3, name: "EBMLHeaderNode" },
+    NodeInfo { id: 0x18538067, name: "SegmentNode" },
+    NodeInfo { id: 0x114d9b74, name: "SeekHeadNode" },
+    NodeInfo { id: 0x4dbb, name: "SeekNode" },
+    NodeInfo { id: 0x1549a966, name: "InfoNode" },
+    NodeInfo { id: 0x1f43b675, name: "ClusterNode" },
+    NodeInfo { id: 0xa0, name: "BlockGroupNode" },
+    NodeInfo { id: 0x8e, name: "SlicesNode" },
+    NodeInfo { id: 0x1654ae6b, name: "TracksNode" },
+    NodeInfo { id: 0xae, name: "TrackEntryNode" },
+    NodeInfo { id: 0xe0, name: "VideoNode" },
+    NodeInfo { id: 0xe1, name: "AudioNode" },
+    NodeInfo { id: 0x6d80, name: "ContentEncodingsNode" },
+    NodeInfo { id: 0x6240, name: "ContentEncodingNode" },
+    NodeInfo { id: 0x5035, name: "ContentEncryptionNode" },
+    NodeInfo { id: 0x47e7, name: "ContentEncAESSettingsNode" },
+    NodeInfo { id: 0x1c53bb6b, name: "CuesNode" },
+    NodeInfo { id: 0xbb, name: "CuePointNode" },
+    NodeInfo { id: 0xb7, name: "CueTrackPositionsNode" },
+    NodeInfo { id: 0x1043a770, name: "ChaptersNode" },
+    NodeInfo { id: 0x45b9, name: "EditionEntryNode" },
+    NodeInfo { id: 0xb6, name: "ChapterAtomNode" },
+    NodeInfo { id: 0x80, name: "ChapterDisplayNode" },
+    NodeInfo { id: 0x1254c367, name: "TagsNode" },
+    NodeInfo { id: 0x7373, name: "TagNode" },
+    NodeInfo { id: 0x63c0, name: "TargetsNode" },
+    NodeInfo { id: 0x67c8, name: "SimpleTagNode" },
+
+    // non-master nodes
+    // ebml header
+    NodeInfo { id: 0x4286, name: "EBMLVersion" },
+    NodeInfo { id: 0x42f7, name: "EBMLReadVersion" },
+    NodeInfo { id: 0x42f2, name: "EBMLMaxIDLength" },
+    NodeInfo { id: 0x42f3, name: "EBMLMaxSizeLength" },
+    NodeInfo { id: 0x4282, name: "DocType" },
+    NodeInfo { id: 0x4287, name: "DocTypeVersion" },
+    NodeInfo { id: 0x4285, name: "DocTypeReadVersion" },
+    NodeInfo { id: 0xbf, name: "CRC-32" },
+    NodeInfo { id: 0xec, name: "Void" },
+    NodeInfo { id: 0x1b538667, name: "SignatureSlot" },
+    NodeInfo { id: 0x7e8a, name: "SignatureAlgo" },
+    NodeInfo { id: 0x7e9a, name: "SignatureHash" },
+    NodeInfo { id: 0x7ea5, name: "SignaturePublicKey" },
+    NodeInfo { id: 0x7eb5, name: "Signature" },
+    NodeInfo { id: 0x7e5b, name: "SignatureElements" },
+    NodeInfo { id: 0x7e7b, name: "SignatureElementList" },
+    NodeInfo { id: 0x6532, name: "SignedElement" },
+
+    // everything else
+    NodeInfo { id: 0x53ab, name: "SeekID" },
+    NodeInfo { id: 0x53ac, name: "SeekPosition" },
+    NodeInfo { id: 0x2ad7b1, name: "TimestampScale" },
+    NodeInfo { id: 0x4489, name: "Duration" },
+    NodeInfo { id: 0x4461, name: "DateUTC" },
+    NodeInfo { id: 0x4d80, name: "MuxingApp" },
+    NodeInfo { id: 0x5741, name: "WritingApp" },
+    NodeInfo { id: 0xe7, name: "Timestamp" },
+    NodeInfo { id: 0xab, name: "PrevSize" },
+    NodeInfo { id: 0xa3, name: "SimpleBlock" },
+    NodeInfo { id: 0xa1, name: "Block" },
+    NodeInfo { id: 0x9b, name: "BlockDuration" },
+    NodeInfo { id: 0xfb, name: "ReferenceBlock" },
+    NodeInfo { id: 0x75a2, name: "DiscardPadding" },
+    NodeInfo { id: 0xcc, name: "LaceNumber" },
+    NodeInfo { id: 0xd7, name: "TrackNumber" },
+    NodeInfo { id: 0x73c5, name: "TrackUID" },
+    NodeInfo { id: 0x83, name: "TrackType" },
+    NodeInfo { id: 0xb9, name: "FlagEnabled" },
+    NodeInfo { id: 0x88, name: "FlagDefault" },
+    NodeInfo { id: 0x55aa, name: "FlagForced" },
+    NodeInfo { id: 0x9c, name: "FlagLacing" },
+    NodeInfo { id: 0x23e383, name: "DefaultDuration" },
+    NodeInfo { id: 0x536e, name: "Name" },
+    NodeInfo { id: 0x22b59c, name: "Language" },
+    NodeInfo { id: 0x86, name: "CodecID" },
+    NodeInfo { id: 0x63a2, name: "CodecPrivate" },
+    NodeInfo { id: 0x258688, name: "CodecName" },
+    NodeInfo { id: 0x56aa, name: "CodecDelay" },
+    NodeInfo { id: 0x56bb, name: "SeekPreRoll" },
+    NodeInfo { id: 0x9a, name: "FlagInterlaced" },
+    NodeInfo { id: 0x53b8, name: "StereoMode" },
+    NodeInfo { id: 0x53c0, name: "AlphaMode" },
+    NodeInfo { id: 0xb0, name: "PixelWidth" },
+    NodeInfo { id: 0xba, name: "PixelHeight" },
+    NodeInfo { id: 0x54aa, name: "PixelCropBottom" },
+    NodeInfo { id: 0x54bb, name: "PixelCropTop" },
+    NodeInfo { id: 0x54cc, name: "PixelCropLeft" },
+    NodeInfo { id: 0x54dd, name: "PixelCropRight" },
+    NodeInfo { id: 0x54b0, name: "DisplayWidth" },
+    NodeInfo { id: 0x54ba, name: "DisplayHeight" },
+    NodeInfo { id: 0x54b2, name: "DisplayUnit" },
+    NodeInfo { id: 0x54b3, name: "AspectRatioType" },
+    NodeInfo { id: 0x7671, name: "ProjectionType" },
+    NodeInfo { id: 0x7672, name: "ProjectionPrivate" },
+    NodeInfo { id: 0x7673, name: "ProjectionPoseYaw" },
+    NodeInfo { id: 0x7674, name: "ProjectionPosePitch" },
+    NodeInfo { id: 0x7675, name: "ProjectionPoseRoll" },
+    NodeInfo { id: 0xb5, name: "SamplingFrequency" },
+    NodeInfo { id: 0x78b5, name: "OutputSamplingFrequency" },
+    NodeInfo { id: 0x9f, name: "Channels" },
+    NodeInfo { id: 0x6264, name: "BitDepth" },
+    NodeInfo { id: 0x5031, name: "ContentEncodingOrder" },
+    NodeInfo { id: 0x5032, name: "ContentEncodingScope" },
+    NodeInfo { id: 0x5033, name: "ContentEncodingType" },
+    NodeInfo { id: 0x47e1, name: "ContentEncAlgo" },
+    NodeInfo { id: 0x47e2, name: "ContentEncKeyID" },
+    NodeInfo { id: 0x47e8, name: "AESSettingsCipherMode" },
+    NodeInfo { id: 0xb3, name: "CueTime" },
+    NodeInfo { id: 0xf7, name: "CueTrack" },
+    NodeInfo { id: 0xf1, name: "CueClusterPosition" },
+    NodeInfo { id: 0x5378, name: "CueBlockNumber" },
+    NodeInfo { id: 0x73c4, name: "ChapterUID" },
+    NodeInfo { id: 0x5654, name: "ChapterStringUID" },
+    NodeInfo { id: 0x91, name: "ChapterTimeStart" },
+    NodeInfo { id: 0x85, name: "ChapString" },
+    NodeInfo { id: 0x437c, name: "ChapLanguage" },
+    NodeInfo { id: 0x68ca, name: "TargetTypeValue" },
+    NodeInfo { id: 0x63ca, name: "TargetType" },
+    NodeInfo { id: 0x63c5, name: "TagTrackUID" },
+    NodeInfo { id: 0x45a3, name: "TagName" },
+    NodeInfo { id: 0x447a, name: "TagLanguage" },
+    NodeInfo { id: 0x4484, name: "TagDefault" },
+    NodeInfo { id: 0x4487, name: "TagString" },
+    NodeInfo { id: 0x4485, name: "TagBinary" },  
+    NodeInfo { id: 0x23314f, name: "TrackTimestampScale" },
+    NodeInfo { id: 0xa7, name: "Position" },
+    NodeInfo { id: 0x73a4, name: "SegmentUID" },
+];
+
+fn get_node_info<'a>(id: u64) -> Option<&'a NodeInfo<'static>> {
+    NODE_INFOS.iter().find(|&info| info.id == id)
+}
+
+#[derive(Clone)]
+pub struct Node {
+    element: Element,
+    children: Vec<Node>,
+}
+
+impl Node {
+    #[allow(dead_code)]
+    fn get_element(&self) -> Element {
+        self.element.clone()
+    }
+
+    #[allow(dead_code)]
+    fn get_children(&self) -> Vec<Node> {
+        self.children.clone()
+    }
+}
+
+impl Debug for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
+        let name = match get_node_info(self.element.id) {
+            Some(info) => info.name,
+            None => "Node",
+        };
+
+        let mut dbg = f.debug_struct(name);
+        dbg.field("element", &self.element);
+
+        // ignore children if empty
+        if self.children.len() > 0 {
+            dbg.field("children", &self.children);
+        }
+
+        dbg.finish()
+    }
 }
 
 // bit of a hack, but seems to work well enough
-node_type!(EBMLHeaderNode, BaseNode);
-node_type!(SegmentNode, BaseNode);
-node_type!(SeekHeadNode, BaseNode);
-node_type!(SeekNode, BaseNode);
-node_type!(InfoNode, BaseNode);
-node_type!(ClusterNode, BaseNode);
-node_type!(BlockGroupNode, BaseNode);
-node_type!(SlicesNode, BaseNode);
-node_type!(TracksNode, BaseNode);
-node_type!(TrackEntryNode, BaseNode);
-node_type!(VideoNode, BaseNode);
-node_type!(ProjectionNode, BaseNode);
-node_type!(AudioNode, BaseNode);
-node_type!(ContentEncodingsNode, BaseNode);
-node_type!(ContentEncodingNode, BaseNode);
-node_type!(ContentEncryptionNode, BaseNode);
-node_type!(ContentEncAESSettingsNode, BaseNode);
-node_type!(CuesNode, BaseNode);
-node_type!(CuePointNode, BaseNode);
-node_type!(CueTrackPositionsNode, BaseNode);
-node_type!(ChaptersNode, BaseNode);
-node_type!(EditionEntryNode, BaseNode);
-node_type!(ChapterAtomNode, BaseNode);
-node_type!(ChapterDisplayNode, BaseNode);
-node_type!(TagsNode, BaseNode);
-node_type!(TagNode, BaseNode);
-node_type!(TargetsNode, BaseNode);
-node_type!(SimpleTagNode, BaseNode);
+node_type!(EBMLHeaderNode, Node);
+node_type!(SegmentNode, Node);
+node_type!(SeekHeadNode, Node);
+node_type!(SeekNode, Node);
+node_type!(InfoNode, Node);
+node_type!(ClusterNode, Node);
+node_type!(BlockGroupNode, Node);
+node_type!(SlicesNode, Node);
+node_type!(TracksNode, Node);
+node_type!(TrackEntryNode, Node);
+node_type!(VideoNode, Node);
+node_type!(ProjectionNode, Node);
+node_type!(AudioNode, Node);
+node_type!(ContentEncodingsNode, Node);
+node_type!(ContentEncodingNode, Node);
+node_type!(ContentEncryptionNode, Node);
+node_type!(ContentEncAESSettingsNode, Node);
+node_type!(CuesNode, Node);
+node_type!(CuePointNode, Node);
+node_type!(CueTrackPositionsNode, Node);
+node_type!(ChaptersNode, Node);
+node_type!(EditionEntryNode, Node);
+node_type!(ChapterAtomNode, Node);
+node_type!(ChapterDisplayNode, Node);
+node_type!(TagsNode, Node);
+node_type!(TagNode, Node);
+node_type!(TargetsNode, Node);
+node_type!(SimpleTagNode, Node);
 
 #[derive(Clone)]
 pub struct Element {
@@ -200,10 +365,10 @@ impl<T: Read + Seek> WebmReader<T> {
         })
     }
 
-    fn build_node_tree(&mut self) -> BaseNode {
+    fn build_node_tree(&mut self) -> Node {
         // parse next element
         let elem = self.parse_element();
-        let mut children: Vec<BaseNode> = Vec::new();
+        let mut children: Vec<Node> = Vec::new();
         
         // if elem is a master, build child node tree
         if elem.kind == ElementKind::Master {
@@ -216,7 +381,7 @@ impl<T: Read + Seek> WebmReader<T> {
             }    
         }
 
-        BaseNode {
+        Node {
             element: elem,
             children: children,
         }
@@ -240,18 +405,20 @@ impl<T: Read + Seek> WebmReader<T> {
             0x88 | 0x9c | 0x9a |
             0xb0 | 0xba | 0x9f |
             0xb3 | 0xf1 | 0xf7 |
+            0xa7 |
             0x4286 | 0x42f7 | 0x42f2 |
             0x42f3 | 0x4287 | 0x4285 |
             0x53ac | 0x73c5 | 0x55aa |
             0x56aa | 0x56bb | 0x53b8 |
-            0x53c0 |
+            0x53c0 | 0x5378 |
             0x2ad7b1 | 0x23e383         => ElementKind::UInt,
 
             0xfb |
             0x75a2                      => ElementKind::SInt,
 
             0xb5 |
-            0x4489                      => ElementKind::Float,
+            0x4489 |
+            0x23314f                    => ElementKind::Float,
 
             0x4461                      => ElementKind::Date,
 
@@ -265,7 +432,7 @@ impl<T: Read + Seek> WebmReader<T> {
 
             0xa3 | 0xa1 |
             0xec | 0xbf |
-            0x53ab | 0x63a2             => ElementKind::Binary,
+            0x53ab | 0x63a2 | 0x73a4    => ElementKind::Binary,
 
             0xa0 | 0x8e | 0xe8 |
             0xae | 0xe0 | 0xe1 |
@@ -320,15 +487,15 @@ impl WebmFile {
     }
 }
 
-impl Node for BaseNode {
-    fn get_element(&self) -> Element {
-        self.element.clone()
-    }
+// impl Node for BaseNode {
+//     fn get_element(&self) -> Element {
+//         self.element.clone()
+//     }
 
-    fn get_children(&self) -> Vec<BaseNode> {
-        self.children.clone()
-    }
-}
+//     fn get_children(&self) -> Vec<BaseNode> {
+//         self.children.clone()
+//     }
+// }
 
 impl EBMLHeaderNode {
     pub fn get_version(&self) -> u64 {
@@ -446,7 +613,7 @@ impl ClusterNode {
         }
     }
 
-    pub fn get_simple_blocks(&self) -> Vec<BaseNode> {
+    pub fn get_simple_blocks(&self) -> Vec<Node> {
         filter_nodes!(self.get_children(), 0xa3)
     }
 
@@ -747,6 +914,76 @@ impl CueTrackPositionsNode {
     }
 }
 
+impl ChaptersNode {
+    pub fn get_edition_entries(&self) -> Vec<EditionEntryNode> {
+        filter_nodes!(self.get_children(), EditionEntryNode, 0x45b9)
+    }
+}
+
+impl EditionEntryNode {
+    pub fn get_chapter_atoms(&self) -> Vec<ChapterAtomNode> {
+        filter_nodes!(self.get_children(), ChapterAtomNode, 0xb6)
+    }
+}
+
+impl ChapterAtomNode {
+    pub fn get_uid(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x73c4)
+    }
+
+    pub fn get_string_uid(&self) -> Option<String> {
+        find_node_data_opt!(self.get_children(), 0x5654)
+    }
+
+    pub fn get_start_time(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x91)
+    }
+
+    pub fn get_displays(&self) -> Vec<ChapterDisplayNode> {
+        filter_nodes!(self.get_children(), ChapterDisplayNode, 0x80)
+    }
+}
+
+impl ChapterDisplayNode {
+    pub fn get_string(&self) -> String {
+        find_node_data_mand!(self.get_children(), 0x85)
+    }
+
+    pub fn get_languages(&self) -> Vec<String> {
+        filter_nodes_raw!(self.get_children(), 0x437c)
+            .map(|node| node.element.data.into_string())
+            .collect()
+    }
+}
+
+impl TagsNode {
+    pub fn get_tags(&self) -> Vec<TagNode> {
+        filter_nodes!(self.get_children(), TagNode, 0x7373)
+    }
+}
+
+impl TagNode {
+    pub fn get_targets(&self) -> TargetsNode {
+        find_node!(self.get_children(), TargetsNode, 0x63c0).unwrap()
+    }
+}
+
+impl TargetsNode {
+    pub fn get_type_value(&self) -> Option<u64> {
+        find_node_data_opt!(self.get_children(), 0x68ca)
+    }
+
+    pub fn get_type(&self) -> Option<String> {
+        find_node_data_opt!(self.get_children(), 0x63ca)
+    }
+
+    pub fn get_track_uid(&self) -> Vec<u64> {
+        filter_nodes_raw!(self.get_children(), 0x63c5)
+            .map(|node| node.element.data.into_uint())
+            .collect()
+    }
+}
+
 impl Debug for Element {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
         let data_str = match self.kind {
@@ -755,12 +992,13 @@ impl Debug for Element {
             ElementKind::UInt   => self.data.into_uint().to_string(),
             ElementKind::SInt |
             ElementKind::Date   => self.data.into_int().to_string(),
+            ElementKind::Float  => self.data.into_float().to_string(),
             _                   => format!("{:x?}", self.data.into_vec()),
         };
         write!(
-            f, 
-            "(id: 0x{:x}, size: {}, kind: {:?}, data: {})", 
-            self.id, 
+            f,
+            "(id: 0x{:x}, size: {}, kind: {:?}, data: {})",
+            self.id,
             self.size,
             self.kind,
             data_str,
@@ -829,7 +1067,7 @@ impl Into<bool> for ElementData {
 fn read_vint(mut r: impl Read) -> u64 {
     let mut buf = vec![0; 1];
     r.read_exact(&mut buf).unwrap();
-    let count = 
+    let count =
         (count_leading_zeros(buf[0] as u8) + 1) as usize;
 
     if count > 1 {
