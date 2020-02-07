@@ -487,16 +487,6 @@ impl WebmFile {
     }
 }
 
-// impl Node for BaseNode {
-//     fn get_element(&self) -> Element {
-//         self.element.clone()
-//     }
-
-//     fn get_children(&self) -> Vec<BaseNode> {
-//         self.children.clone()
-//     }
-// }
-
 impl EBMLHeaderNode {
     pub fn get_version(&self) -> u64 {
         find_node_data!(self.get_children(), 0x4286).unwrap().into()
@@ -981,6 +971,28 @@ impl TargetsNode {
         filter_nodes_raw!(self.get_children(), 0x63c5)
             .map(|node| node.element.data.into_uint())
             .collect()
+    }
+}
+
+impl SimpleTagNode {
+    pub fn get_name(&self) -> String {
+        find_node_data_mand!(self.get_children(), 0x45a3)
+    }
+
+    pub fn get_language(&self) -> String {
+        find_node_data_mand!(self.get_children(), 0x447a)
+    }
+
+    pub fn get_default(&self) -> u64 {
+        find_node_data_mand!(self.get_children(), 0x4484)
+    }
+
+    pub fn get_string(&self) -> Option<String> {
+        find_node_data_opt!(self.get_children(), 0x4487)
+    }
+
+    pub fn get_binary(&self) -> Option<Vec<u8>> {
+        find_node_data_opt!(self.get_children(), 0x4485)
     }
 }
 
