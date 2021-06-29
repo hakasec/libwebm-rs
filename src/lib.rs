@@ -1,9 +1,10 @@
 mod ebml;
+mod consts;
 
 #[cfg(test)]
 mod tests {
     use std::fs::File;
-    use super::ebml::{WebmReader, WebmFile, Node};
+    use super::ebml::{WebmReader, WebmFile};
 
     #[test]
     fn test_parser() {

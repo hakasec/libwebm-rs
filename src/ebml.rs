@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Error as IOError};
 use std::fmt::{Debug, Formatter, Error as FmtError};
+use crate::consts::*;
 
 // Generate a node type from some base node
 macro_rules! node_type {
@@ -85,15 +86,6 @@ macro_rules! find_node_data_mand {
     };
 }
 
-// Magic number for webm files
-#[allow(dead_code)]
-const MAGIC_NUMBER: [u8; 4] = [
-    0x1a,
-    0x45,
-    0xdf,
-    0xa3
-]; 
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum ElementKind {
     Unknown,
@@ -121,142 +113,8 @@ pub struct WebmFile {
 }
 
 pub struct NodeInfo<'a> {
-    id: u64,
-    name: &'a str,
-}
-
-const NODE_INFOS: [NodeInfo<'static>; 122] = [
-    NodeInfo { id: 0x1a45dfa3, name: "EBMLHeaderNode" },
-    NodeInfo { id: 0x18538067, name: "SegmentNode" },
-    NodeInfo { id: 0x114d9b74, name: "SeekHeadNode" },
-    NodeInfo { id: 0x4dbb, name: "SeekNode" },
-    NodeInfo { id: 0x1549a966, name: "InfoNode" },
-    NodeInfo { id: 0x1f43b675, name: "ClusterNode" },
-    NodeInfo { id: 0xa0, name: "BlockGroupNode" },
-    NodeInfo { id: 0x8e, name: "SlicesNode" },
-    NodeInfo { id: 0x1654ae6b, name: "TracksNode" },
-    NodeInfo { id: 0xae, name: "TrackEntryNode" },
-    NodeInfo { id: 0xe0, name: "VideoNode" },
-    NodeInfo { id: 0xe1, name: "AudioNode" },
-    NodeInfo { id: 0x6d80, name: "ContentEncodingsNode" },
-    NodeInfo { id: 0x6240, name: "ContentEncodingNode" },
-    NodeInfo { id: 0x5035, name: "ContentEncryptionNode" },
-    NodeInfo { id: 0x47e7, name: "ContentEncAESSettingsNode" },
-    NodeInfo { id: 0x1c53bb6b, name: "CuesNode" },
-    NodeInfo { id: 0xbb, name: "CuePointNode" },
-    NodeInfo { id: 0xb7, name: "CueTrackPositionsNode" },
-    NodeInfo { id: 0x1043a770, name: "ChaptersNode" },
-    NodeInfo { id: 0x45b9, name: "EditionEntryNode" },
-    NodeInfo { id: 0xb6, name: "ChapterAtomNode" },
-    NodeInfo { id: 0x80, name: "ChapterDisplayNode" },
-    NodeInfo { id: 0x1254c367, name: "TagsNode" },
-    NodeInfo { id: 0x7373, name: "TagNode" },
-    NodeInfo { id: 0x63c0, name: "TargetsNode" },
-    NodeInfo { id: 0x67c8, name: "SimpleTagNode" },
-
-    // non-master nodes
-    // ebml header
-    NodeInfo { id: 0x4286, name: "EBMLVersion" },
-    NodeInfo { id: 0x42f7, name: "EBMLReadVersion" },
-    NodeInfo { id: 0x42f2, name: "EBMLMaxIDLength" },
-    NodeInfo { id: 0x42f3, name: "EBMLMaxSizeLength" },
-    NodeInfo { id: 0x4282, name: "DocType" },
-    NodeInfo { id: 0x4287, name: "DocTypeVersion" },
-    NodeInfo { id: 0x4285, name: "DocTypeReadVersion" },
-    NodeInfo { id: 0xbf, name: "CRC-32" },
-    NodeInfo { id: 0xec, name: "Void" },
-    NodeInfo { id: 0x1b538667, name: "SignatureSlot" },
-    NodeInfo { id: 0x7e8a, name: "SignatureAlgo" },
-    NodeInfo { id: 0x7e9a, name: "SignatureHash" },
-    NodeInfo { id: 0x7ea5, name: "SignaturePublicKey" },
-    NodeInfo { id: 0x7eb5, name: "Signature" },
-    NodeInfo { id: 0x7e5b, name: "SignatureElements" },
-    NodeInfo { id: 0x7e7b, name: "SignatureElementList" },
-    NodeInfo { id: 0x6532, name: "SignedElement" },
-
-    // everything else
-    NodeInfo { id: 0x53ab, name: "SeekID" },
-    NodeInfo { id: 0x53ac, name: "SeekPosition" },
-    NodeInfo { id: 0x2ad7b1, name: "TimestampScale" },
-    NodeInfo { id: 0x4489, name: "Duration" },
-    NodeInfo { id: 0x4461, name: "DateUTC" },
-    NodeInfo { id: 0x4d80, name: "MuxingApp" },
-    NodeInfo { id: 0x5741, name: "WritingApp" },
-    NodeInfo { id: 0xe7, name: "Timestamp" },
-    NodeInfo { id: 0xab, name: "PrevSize" },
-    NodeInfo { id: 0xa3, name: "SimpleBlock" },
-    NodeInfo { id: 0xa1, name: "Block" },
-    NodeInfo { id: 0x9b, name: "BlockDuration" },
-    NodeInfo { id: 0xfb, name: "ReferenceBlock" },
-    NodeInfo { id: 0x75a2, name: "DiscardPadding" },
-    NodeInfo { id: 0xcc, name: "LaceNumber" },
-    NodeInfo { id: 0xd7, name: "TrackNumber" },
-    NodeInfo { id: 0x73c5, name: "TrackUID" },
-    NodeInfo { id: 0x83, name: "TrackType" },
-    NodeInfo { id: 0xb9, name: "FlagEnabled" },
-    NodeInfo { id: 0x88, name: "FlagDefault" },
-    NodeInfo { id: 0x55aa, name: "FlagForced" },
-    NodeInfo { id: 0x9c, name: "FlagLacing" },
-    NodeInfo { id: 0x23e383, name: "DefaultDuration" },
-    NodeInfo { id: 0x536e, name: "Name" },
-    NodeInfo { id: 0x22b59c, name: "Language" },
-    NodeInfo { id: 0x86, name: "CodecID" },
-    NodeInfo { id: 0x63a2, name: "CodecPrivate" },
-    NodeInfo { id: 0x258688, name: "CodecName" },
-    NodeInfo { id: 0x56aa, name: "CodecDelay" },
-    NodeInfo { id: 0x56bb, name: "SeekPreRoll" },
-    NodeInfo { id: 0x9a, name: "FlagInterlaced" },
-    NodeInfo { id: 0x53b8, name: "StereoMode" },
-    NodeInfo { id: 0x53c0, name: "AlphaMode" },
-    NodeInfo { id: 0xb0, name: "PixelWidth" },
-    NodeInfo { id: 0xba, name: "PixelHeight" },
-    NodeInfo { id: 0x54aa, name: "PixelCropBottom" },
-    NodeInfo { id: 0x54bb, name: "PixelCropTop" },
-    NodeInfo { id: 0x54cc, name: "PixelCropLeft" },
-    NodeInfo { id: 0x54dd, name: "PixelCropRight" },
-    NodeInfo { id: 0x54b0, name: "DisplayWidth" },
-    NodeInfo { id: 0x54ba, name: "DisplayHeight" },
-    NodeInfo { id: 0x54b2, name: "DisplayUnit" },
-    NodeInfo { id: 0x54b3, name: "AspectRatioType" },
-    NodeInfo { id: 0x7671, name: "ProjectionType" },
-    NodeInfo { id: 0x7672, name: "ProjectionPrivate" },
-    NodeInfo { id: 0x7673, name: "ProjectionPoseYaw" },
-    NodeInfo { id: 0x7674, name: "ProjectionPosePitch" },
-    NodeInfo { id: 0x7675, name: "ProjectionPoseRoll" },
-    NodeInfo { id: 0xb5, name: "SamplingFrequency" },
-    NodeInfo { id: 0x78b5, name: "OutputSamplingFrequency" },
-    NodeInfo { id: 0x9f, name: "Channels" },
-    NodeInfo { id: 0x6264, name: "BitDepth" },
-    NodeInfo { id: 0x5031, name: "ContentEncodingOrder" },
-    NodeInfo { id: 0x5032, name: "ContentEncodingScope" },
-    NodeInfo { id: 0x5033, name: "ContentEncodingType" },
-    NodeInfo { id: 0x47e1, name: "ContentEncAlgo" },
-    NodeInfo { id: 0x47e2, name: "ContentEncKeyID" },
-    NodeInfo { id: 0x47e8, name: "AESSettingsCipherMode" },
-    NodeInfo { id: 0xb3, name: "CueTime" },
-    NodeInfo { id: 0xf7, name: "CueTrack" },
-    NodeInfo { id: 0xf1, name: "CueClusterPosition" },
-    NodeInfo { id: 0x5378, name: "CueBlockNumber" },
-    NodeInfo { id: 0x73c4, name: "ChapterUID" },
-    NodeInfo { id: 0x5654, name: "ChapterStringUID" },
-    NodeInfo { id: 0x91, name: "ChapterTimeStart" },
-    NodeInfo { id: 0x85, name: "ChapString" },
-    NodeInfo { id: 0x437c, name: "ChapLanguage" },
-    NodeInfo { id: 0x68ca, name: "TargetTypeValue" },
-    NodeInfo { id: 0x63ca, name: "TargetType" },
-    NodeInfo { id: 0x63c5, name: "TagTrackUID" },
-    NodeInfo { id: 0x45a3, name: "TagName" },
-    NodeInfo { id: 0x447a, name: "TagLanguage" },
-    NodeInfo { id: 0x4484, name: "TagDefault" },
-    NodeInfo { id: 0x4487, name: "TagString" },
-    NodeInfo { id: 0x4485, name: "TagBinary" },  
-    NodeInfo { id: 0x23314f, name: "TrackTimestampScale" },
-    NodeInfo { id: 0xa7, name: "Position" },
-    NodeInfo { id: 0x73a4, name: "SegmentUID" },
-];
-
-fn get_node_info<'a>(id: u64) -> Option<&'a NodeInfo<'static>> {
-    NODE_INFOS.iter().find(|&info| info.id == id)
+    pub id: u64,
+    pub name: &'a str,
 }
 
 #[derive(Clone)]
@@ -349,7 +207,7 @@ impl<T: Read + Seek> WebmReader<T> {
                     panic!("incorrect magic number")
                 }
             },
-            Err(e) => panic!(e), 
+            Err(e) => panic!("{}", e),
         }
         
         // seek back to beginning
